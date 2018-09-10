@@ -24,11 +24,15 @@ class AccountMoveLine(models.Model):
 
     @api.multi
     def create_analytic_lines(self):
-        super(AccountMoveLine, self).create_analytic_lines()
-        for line in self:
-            if line.analytic_distribution_id:
-                line.analytic_lines.unlink()
-                for rule in line.analytic_distribution_id.rule_ids:
-                    values = line._analytic_line_distributed_prepare(rule)
-                    self.env['account.analytic.line'].create(values)
-        return True
+        res = super(AccountMoveLine, self).create_analytic_lines()
+        move_lines = self.search([
+            ('id', 'in', self.ids), ('analytic_distribution_id', '!=', False)])
+        if not move_lines:
+            return res
+        self.env['account.analytic.line'].search(
+            [('move_id', 'in', move_lines.ids)]).unlink()
+        for line in move_lines:
+            for rule in line.analytic_distribution_id.rule_ids:
+                values = line._analytic_line_distributed_prepare(rule)
+                self.env['account.analytic.line'].create(values)
+        return res
